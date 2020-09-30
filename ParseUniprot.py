@@ -1,21 +1,19 @@
-#FileName = 'uniprot_sprot_archaea.txt'
-#WorkDir = 'C:\\Users\\tinta\\OneDrive\\Documents\\Projects\\Frenquency_of_aminoacids\\'
 # TODO: Would be interesting to compute all protein costs per each protein in E. coli and
-# plot the distribution. Also, perhaps we can predict the distribution of costs using 
+# plot the distribution. Also, perhaps we can predict the distribution of costs using
 # techniques from statistical physics. We would have to constraint the average to some
-# value, the physiological limit of protein synthesis. 
+# value, the physiological limit of protein synthesis.
 from matplotlib import pyplot as plt
 import seaborn as sns
 import numpy as np
 import re
 import warnings
 
-def getProteinSequences(DataFile):
 
-    # Read protein sequence data file and extract protein sequences
-
-    # Read master protein data file
-    with open(DataFile) as file:
+def getProteinSequences(path_to_data: str) -> dict:
+    """
+    Read protein sequence data file and extract protein sequences
+    """
+    with open(path_to_data) as file:
         data = file.read()
 
     # Isolate protein sequences (using key: CRC64 with 12 empty spaces before start)
@@ -24,10 +22,89 @@ def getProteinSequences(DataFile):
 
     proteins = {}
     for idx in range(len(pstart)):
-        proteins[idx] = re.sub(' ','',re.sub('\n','',data[pstart[idx]+12:pend[idx]]))
-    
+        proteins[idx] = re.sub(' ', '', re.sub('\n', '', data[pstart[idx]+12:pend[idx]]))
+
     return proteins
 
+
+def getAAFrequencies(protein_sequences: dict, nsections: int = 30) -> dict:
+    """
+    Compute the frequency of each amino acid accross the protein sequence and all proteins. 
+    It also plots the results for the 20 aminoacids.
+    Arguments:
+    ----------
+    protein_sequences: dict, output of the function getProteinSequences.
+    """
+    aminoacids = {'G':'Glycine','A':'Alanine','L':'Leucine','M':'Methionine',
+                  'F':'Phenylalanine','W':'Tryptophan','K':'Lysine','Q':'Glutamine',
+                  'E':'Glutamic acid','S':'Serine','P':'Proline','V':'Valine',
+                  'I':'Isoleucine','C':'Cysteine','Y':'Tyrosine','H':'Histidine',
+                  'R':'Arginine','N':'Asparagine','D':'Aspartic acid','T':'Threonine'}
+    aas = list(aminoacids.keys())
+    aminoacid_freqs = {}
+    for aa in aas:
+        aa_counts = np.zeros(nsections)
+        for protein in protein_sequences.values():
+            if len(protein) > 0:
+                subprots = np.array_split(list(protein), nsections)
+                for idx in range(len(subprots)):
+                    aa_counts[idx] += subprots[idx].tolist().count(aa)
+        aminoacid_freqs[aa] = 100 * aa_counts / aa_counts.sum()
+
+    return aminoacid_freqs
+
+
+def computeAverageAAFrequency(aa_freqs: dict) -> dict:
+    groups = list(aa_freqs.keys())
+    nsections = len(aa_freqs['human']['G'])
+    average_freqs = {}
+    for aa in aa_freqs['human'].keys():
+        average_freqs[aa] = np.array(
+            [np.mean([aa_freqs[g][aa][t] for g in groups]) for t in range(nsections)]
+        )
+    return average_freqs
+
+    
+def plotAAFrequencies(data: dict, colors: dict, nsections: int = 30):
+    """
+    Plots frequencies of the 20 amino acids along protein sequence
+    across all proteins of a group for all groups in data
+    """     
+    aminoacids = {'G':'Glycine','A':'Alanine','L':'Leucine','M':'Methionine',
+                  'F':'Phenylalanine','W':'Tryptophan','K':'Lysine','Q':'Glutamine',
+                  'E':'Glutamic acid','S':'Serine','P':'Proline','V':'Valine',
+                  'I':'Isoleucine','C':'Cysteine','Y':'Tyrosine','H':'Histidine',
+                  'R':'Arginine','N':'Asparagine','D':'Aspartic acid','T':'Threonine'}
+
+    fig = plt.figure(figsize = (12, 14))
+    plt.subplots_adjust(left=0.05, bottom=None, right=None, top=None, wspace=None, hspace=0.5)
+    fig.text(0.5, 0, 'location in sequence (%)', va='center', ha='center', fontsize=14)
+    fig.text(0, 0.5, 'frequency (%)', va='center', ha='center', rotation='vertical', fontsize=14)
+    
+    plot_data = {}
+    aas = list(data[list(data.keys())[0]].keys())
+    for idx, aa in enumerate(aas):
+        plt.subplot(5, 4, idx + 1)
+        for group in data.keys():
+            if group != 'average':
+                if idx == 0:
+                    plt.plot(np.linspace(0, 100, nsections), data[group][aa], color=colors[group], 
+                             label=group, linewidth=0.5)
+                else:
+                    plt.plot(np.linspace(0, 100, nsections), data[group][aa], color=colors[group],
+                             linewidth=0.5)
+            else:
+                if idx == 0:
+                    plt.plot(np.linspace(0, 100, nsections), data[group][aa], color=colors[group], 
+                             label=group, linewidth=2)
+                else:
+                    plt.plot(np.linspace(0, 100, nsections), data[group][aa], color=colors[group],
+                             linewidth=2)
+        plt.title(aminoacids[aa], fontsize = 12)
+    
+    fig.legend(loc=(0.895, 0.15))
+    plt.show()
+    
 
 def plotfreqAAs(DataFile, nsections=4):
 
@@ -43,7 +120,6 @@ def plotfreqAAs(DataFile, nsections=4):
                   'I':'Isoleucine','C':'Cysteine','Y':'Tyrosine','H':'Histidine',
                   'R':'Arginine','N':'Asparagine','D':'Aspartic acid','T':'Threonine'}
     aas = list(aminoacids.keys())
-    naas = len(aas)
 
     # Compute the frequency of each aminoacid across protein sequence
     aminoacid_freqs = {}
@@ -80,7 +156,7 @@ def plot_aminoacid_freq(protein):
     # protein. The argument 'protein' is a list containing the one-letter code
     # of its amminoacids.
 
-    
+
     aminoacids = {'G':'Glycine','A':'Alanine','L':'Leucine','M':'Methionine',
                   'F':'Phenylalanine','W':'Tryptophan','K':'Lysine','Q':'Glutamine',
                   'E':'Glutamic acid','S':'Serine','P':'Proline','V':'Valine',
@@ -149,13 +225,13 @@ def getProteinCost(proteinSequence):
     aa_costs = {'G':12,'A':12,'V':47,'L':55,'P':61,'I':65,'S':70,'E':77,
             'R':109,'T':112,'D':114,'Q':130,'N':147,'F':208,'K':242,
             'Y':350,'M':446,'H':536,'C':741,'W':892}
-                
+
     return(sum([aa_costs[aa] for aa in proteinSequence if aa in aa_costs.keys()]))
 
 
 def getAllProteinsCosts(DataFile):
     """
-    Get protein costs for all proteins in the data file, together with their 
+    Get protein costs for all proteins in the data file, together with their
     sequence length
     """
     warnings.filterwarnings('ignore')
@@ -165,10 +241,10 @@ def getAllProteinsCosts(DataFile):
         psize = len(protein)
         proteinSizes.append(psize)
         proteinCosts.append(psize * getProteinCost(protein))
-     
+
     cost = np.log(np.array(proteinCosts))
     proteinSize = np.array(proteinSizes)
-    
+
     plt.figure(figsize=(12, 9))
     plt.xlabel('log(cost)')
     plt.ylabel('counts')
@@ -177,7 +253,7 @@ def getAllProteinsCosts(DataFile):
                          color='blue', kde_kws={'shade': True, 'linewidth': 3},
                          hist_kws={'edgecolor': 'black'})
     plt.show()
-    
+
     plt.figure(figsize=(12, 9))
     plt.xlabel('size')
     plt.ylabel('counts')
@@ -185,9 +261,6 @@ def getAllProteinsCosts(DataFile):
                          color='green', kde_kws={'shade': True, 'linewidth': 3},
                          hist_kws={'edgecolor': 'black'})
     plt.show()
-    
+
     warnings.resetwarnings()
     return proteinCosts
-    
-        
-   
